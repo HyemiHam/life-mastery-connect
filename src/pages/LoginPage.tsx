@@ -1,26 +1,41 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Layout from "@/components/layout/Layout";
+import { useLogin } from "../hooks/auth/useLogin";
+import { useToast } from "../hooks/use-toast";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LoginPage = () => {
-  const [username, setUsername] = useState("");
+  const location = useLocation();
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const { isLoading, error, handleLogin } = useLogin();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // useEffect를 사용하여 컴포넌트 마운트 시 또는 location.state가 변경될 때만 토스트 표시
+  useEffect(() => {
+    // 회원가입 등에서 넘어온 메시지가 있으면 토스트로 표시
+    const message = location.state?.message;
+    if (message) {
+      toast({
+        title: "알림",
+        description: message,
+      });
+      
+      // 메시지를 표시한 후에는 state에서 제거
+      // history API 대신 window.history 사용
+      window.history.replaceState({}, document.title, location.pathname);
+    }
+  }, [location.state, toast]);
+
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    
-    // 실제 로그인 구현은 API 연결 시 추가 예정
-    setTimeout(() => {
-      setIsLoading(false);
-      // 로그인 성공 시 메인 페이지로 리다이렉트 (실제 구현 시 변경 필요)
-      console.log("로그인 시도:", { username, password });
-    }, 1000);
+    await handleLogin(email, password);
   };
 
   return (
@@ -31,15 +46,22 @@ const LoginPage = () => {
             <CardTitle className="text-2xl font-bold">로그인</CardTitle>
             <CardDescription>아이디와 비밀번호를 입력하세요</CardDescription>
           </CardHeader>
-          <form onSubmit={handleLogin}>
+          <form onSubmit={onSubmit}>
             <CardContent className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <div className="space-y-2">
-                <Label htmlFor="username">아이디</Label>
+                <Label htmlFor="email">이메일</Label>
                 <Input
-                  id="username"
-                  placeholder="아이디를 입력하세요"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  id="email"
+                  type="email"
+                  placeholder="이메일을 입력하세요"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
