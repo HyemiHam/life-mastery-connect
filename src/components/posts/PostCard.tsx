@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,9 +27,10 @@ export interface PostData {
 interface PostCardProps {
   post: PostData;
   compact?: boolean;
+  onPostClick?: (id: string) => void;
 }
 
-const PostCard = ({ post, compact = false }: PostCardProps) => {
+const PostCard = ({ post, compact = false, onPostClick }: PostCardProps) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
@@ -39,6 +39,12 @@ const PostCard = ({ post, compact = false }: PostCardProps) => {
   const truncateText = (text: string, maxLength: number) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
+  };
+
+  const handlePostClick = () => {
+    if (onPostClick) {
+      onPostClick(post.id);
+    }
   };
 
   return (
@@ -70,7 +76,7 @@ const PostCard = ({ post, compact = false }: PostCardProps) => {
           )}
         </div>
 
-        <Link to={`/post/${post.id}`}>
+        <div onClick={handlePostClick} className="cursor-pointer">
           <h3 className={cn("mb-2 font-semibold line-clamp-2", 
             compact ? "text-base" : "text-xl")}>
             {post.title}
@@ -79,7 +85,7 @@ const PostCard = ({ post, compact = false }: PostCardProps) => {
             compact ? "text-sm" : "text-base")}>
             {truncateText(post.content, compact ? 100 : 150)}
           </p>
-        </Link>
+        </div>
 
         {post.tags && post.tags.length > 0 && !compact && (
           <div className="mb-4 flex flex-wrap gap-2">

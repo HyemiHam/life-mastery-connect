@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,35 +80,14 @@ const Index = () => {
   const [welcomeIndex] = useState(Math.floor(Math.random() * welcomeMessages.length));
   
   return (
-    <Layout isLoggedIn={isLoggedIn}>
-      {/* Hero Section */}
-      <section className="mb-12 rounded-lg bg-gradient-to-r from-primary/90 to-primary p-8 text-white shadow-lg">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="mb-4 text-4xl font-bold leading-tight sm:text-5xl">
-            성인 ADHD 성장 커뮤니티
-          </h1>
-          <p className="mb-6 text-xl opacity-90">
-            {welcomeMessages[welcomeIndex]}
-          </p>
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-            {!isLoggedIn && (
-              <>
-                <Button asChild size="lg" variant="outline" className="border-white bg-transparent text-white hover:bg-white hover:text-primary">
-                  <Link to="/login">로그인</Link>
-                </Button>
-                <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">
-                  <Link to="/signup">회원가입</Link>
-                </Button>
-              </>
-            )}
-            {isLoggedIn && (
-              <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">
-                <Link to="/tips">게시판 둘러보기</Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
+    <Layout>
+      {/* Hero Message */}
+      <div className="mx-auto max-w-4xl text-center py-16 px-6">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl">
+          <span className="block">성취와 성장을 위한</span>
+          <span className="block text-primary">라이프 마스터리 커뮤니티</span>
+        </h1>
+      </div>
 
       {/* Featured Posts */}
       <section className="mb-12">

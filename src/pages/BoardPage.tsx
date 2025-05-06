@@ -1,33 +1,40 @@
-
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import BoardHeader from "@/components/board/BoardHeader";
 import BoardFilters from "@/components/board/BoardFilters";
 import PostsList from "@/components/posts/PostsList";
 import { PostData, BoardType } from "@/components/posts/PostCard";
+import { getPosts, Post, GetPostsParams } from "@/api/posts";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 // Board configuration
 const boardConfig = {
   tips: {
     title: "ADHD 극복 꿀팁공유",
     description: "ADHD 관리 방법, 생활 팁 등을 공유하는 공간",
-    path: "/tips"
+    path: "/tips",
+    apiSlug: "freeboard"  // 모든 게시판이 freeboard를 사용
   },
   free: {
     title: "자유게시판",
     description: "일상적인 대화와 소통을 위한 공간",
-    path: "/free"
+    path: "/free",
+    apiSlug: "freeboard"
   },
   positive: {
     title: "긍정·자랑 게시판",
     description: "성취나 긍정적 경험을 공유하는 공간",
-    path: "/positive"
+    path: "/positive",
+    apiSlug: "freeboard"
   },
   knowledge: {
     title: "지식정보·칼럼",
     description: "ADHD 관련 전문 지식, 연구 정보, 칼럼 등 제공",
-    path: "/knowledge"
+    path: "/knowledge",
+    apiSlug: "freeboard"
   }
 };
 
@@ -207,71 +214,131 @@ const mockPosts: Record<string, PostData[]> = {
 
 const BoardPage = () => {
   const { boardType = "tips" } = useParams<{ boardType: keyof typeof boardConfig }>();
-  const [isLoggedIn] = useState(false); // In a real app, this would come from auth context
+  const { isAuthenticated } = useAuth();
   const [posts, setPosts] = useState<PostData[]>([]);
   const [currentSort, setCurrentSort] = useState<"latest" | "popular" | "views">("latest");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Board configuration based on route
   const currentBoard = boardConfig[boardType as keyof typeof boardConfig] || boardConfig.tips;
 
   // Fetch posts on mount and when filters change
   useEffect(() => {
-    // Simulating API call
-    const fetchPosts = () => {
-      // Get posts for current board type
-      let boardPosts = mockPosts[boardType] || [];
-
-      // Apply sorting
-      if (currentSort === "latest") {
-        boardPosts = [...boardPosts].sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      } else if (currentSort === "popular") {
-        boardPosts = [...boardPosts].sort((a, b) => b.likesCount - a.likesCount);
+    const fetchPosts = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // API 호출 파라미터 설정
+        const params: GetPostsParams = {
+          page: 1,
+          limit: 20
+        };
+        
+        // 정렬 옵션 설정
+        if (currentSort === "latest") {
+          params.sort = "created_at";
+          params.order = "desc";
+        } else if (currentSort === "popular") {
+          params.sort = "view_count";
+          params.order = "desc";
+        }
+        
+        // API 호출
+        const response = await getPosts(currentBoard.apiSlug, params);
+        
+        if (response.success && response.data) {
+          // API 응답 데이터를 컴포넌트 형식에 맞게 변환
+          const formattedPosts: PostData[] = response.data.map(post => ({
+            id: post.id,
+            title: post.title,
+            content: post.content || "",
+            author: {
+              id: post.author?.id || "",
+              name: post.author?.username || "익명",
+              avatar: post.author?.avatar_url || ""
+            },
+            createdAt: post.created_at,
+            commentsCount: 0, // API에서 제공하지 않는 경우 기본값
+            likesCount: 0, // API에서 제공하지 않는 경우 기본값
+            tags: post.tags?.map(tag => tag.name) || [],
+            boardType: boardType
+          }));
+          
+          setPosts(formattedPosts);
+        } else {
+          setError(response.message || "게시글을 불러오는데 실패했습니다.");
+        }
+      } catch (err) {
+        console.error("Error fetching posts:", err);
+        setError("게시글을 불러오는데 실패했습니다.");
+      } finally {
+        setIsLoading(false);
       }
-      // "views" sort would use a viewCount field in a real application
-
-      // Apply search filter if provided
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        boardPosts = boardPosts.filter(
-          post => 
-            post.title.toLowerCase().includes(query) || 
-            post.content.toLowerCase().includes(query)
-        );
-      }
-
-      setPosts(boardPosts);
     };
 
     fetchPosts();
-  }, [boardType, currentSort, searchQuery]);
+  }, [boardType, currentSort, searchQuery, currentBoard.apiSlug]);
+
+  // Go to post detail
+  const goToPostDetail = (id: string) => {
+    navigate(`/${boardType}/${id}`);
+  };
+
+  // Go to create post
+  const goToCreatePost = () => {
+    navigate(`/${boardType}/create`);
+  };
 
   return (
-    <Layout isLoggedIn={isLoggedIn}>
-      <BoardHeader 
-        title={currentBoard.title} 
-        description={currentBoard.description} 
-        boardPath={currentBoard.path}
-      />
-      <BoardFilters 
-        currentSort={currentSort}
-        onSortChange={setCurrentSort}
-        onSearch={setSearchQuery}
-      />
-      {posts.length > 0 ? (
-        <PostsList posts={posts} />
-      ) : (
-        <div className="my-12 text-center">
-          <h3 className="text-xl font-medium">게시글이 없습니다</h3>
-          <p className="mt-2 text-muted-foreground">
-            {searchQuery 
-              ? "검색 조건에 맞는 게시글이 없습니다. 다른 검색어로 시도해보세요." 
-              : "첫 번째 게시글을 작성해보세요!"}
-          </p>
+    <Layout>
+      <div className="mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              {currentBoard.title}
+            </h1>
+            <p className="mt-2 text-muted-foreground">{currentBoard.description}</p>
+          </div>
+          
+          {isAuthenticated && (
+            <Button onClick={goToCreatePost} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              <span>글 작성</span>
+            </Button>
+          )}
         </div>
-      )}
+        
+        <BoardFilters 
+          currentSort={currentSort}
+          onSortChange={setCurrentSort}
+          onSearch={setSearchQuery}
+        />
+        
+        {isLoading ? (
+          <div className="my-12 text-center">
+            <p>게시글을 불러오는 중...</p>
+          </div>
+        ) : error ? (
+          <div className="my-12 text-center">
+            <h3 className="text-xl font-medium text-destructive">{error}</h3>
+          </div>
+        ) : posts.length > 0 ? (
+          <PostsList posts={posts} onPostClick={goToPostDetail} />
+        ) : (
+          <div className="my-12 text-center">
+            <h3 className="text-xl font-medium">게시글이 없습니다</h3>
+            <p className="mt-2 text-muted-foreground">
+              {searchQuery 
+                ? "검색 조건에 맞는 게시글이 없습니다. 다른 검색어로 시도해보세요." 
+                : "첫 번째 게시글을 작성해보세요!"}
+            </p>
+          </div>
+        )}
+      </div>
     </Layout>
   );
 };

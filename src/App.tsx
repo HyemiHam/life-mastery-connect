@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import BoardPage from "./pages/BoardPage";
 import PostDetail from "./pages/PostDetail";
+import CreatePostPage from "./pages/CreatePostPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -42,10 +43,16 @@ const App = () => {
               <Route path="/free" element={<BoardPage />} />
               <Route path="/positive" element={<BoardPage />} />
               <Route path="/knowledge" element={<BoardPage />} />
-              <Route path="/post/:postId" element={<PostDetail />} />
+              
+              {/* 게시글 라우트 */}
+              <Route path="/:boardType/create" element={<CreatePostPage />} />
+              <Route path="/:boardType/:postId" element={<PostDetail />} />
+              
+              {/* 인증 라우트 */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

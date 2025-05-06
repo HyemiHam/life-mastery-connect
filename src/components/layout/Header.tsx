@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,13 +10,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Bell, User } from "lucide-react";
+import { useLogout } from "@/hooks/auth/useLogout";
+import { toast } from "@/hooks/use-toast";
+import { User as UserType } from "@/api/auth";
 
 type HeaderProps = {
   isLoggedIn?: boolean;
+  user?: UserType | null;
 };
 
-const Header = ({ isLoggedIn = false }: HeaderProps) => {
+const Header = ({ isLoggedIn = false, user = null }: HeaderProps) => {
   const [unreadNotifications, setUnreadNotifications] = useState(2);
+  const { isLoading, handleLogout } = useLogout();
+
+  const showUnderConstruction = () => {
+    toast({
+      title: "안내",
+      description: "준비 중입니다."
+    });
+  };
 
   return (
     <header className="border-b border-border bg-background py-4">
@@ -98,30 +109,36 @@ const Header = ({ isLoggedIn = false }: HeaderProps) => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="/avatar.png" alt="사용자 아바타" />
+                      <AvatarImage src={user?.user_metadata?.avatar_url || "/avatar.png"} alt="사용자 아바타" />
                       <AvatarFallback>
-                        <User className="h-4 w-4" />
+                        {user?.user_metadata?.username?.charAt(0) || user?.email?.charAt(0) || <User className="h-4 w-4" />}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Link to="/profile" className="flex w-full">프로필 관리</Link>
+                  <DropdownMenuItem onClick={showUnderConstruction}>
+                    <span className="flex w-full">프로필 관리</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link to="/my-posts" className="flex w-full">내가 쓴 글</Link>
+                  <DropdownMenuItem onClick={showUnderConstruction}>
+                    <span className="flex w-full">내가 쓴 글</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link to="/bookmarks" className="flex w-full">북마크한 글</Link>
+                  <DropdownMenuItem onClick={showUnderConstruction}>
+                    <span className="flex w-full">북마크한 글</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={showUnderConstruction}>
+                    <span className="flex w-full">알림 설정</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <Link to="/settings" className="flex w-full">알림 설정</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <button className="flex w-full" onClick={() => {}}>로그아웃</button>
+                    <button 
+                      className="flex w-full" 
+                      onClick={handleLogout}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "로그아웃 중..." : "로그아웃"}
+                    </button>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

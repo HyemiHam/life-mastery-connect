@@ -18,6 +18,7 @@ export const useSignup = () => {
     diagnosis_date?: string | null;
     interests?: string | null;
     avatar_url?: string | null;
+    user_type_id?: number;
   }) => {
     if (!userData.email || !userData.password || !userData.username) {
       setError('필수 정보를 모두 입력해주세요.');
@@ -36,7 +37,8 @@ export const useSignup = () => {
         adhd_diagnosis: userData.adhd_diagnosis,
         diagnosis_date: userData.diagnosis_date,
         interests: userData.interests,
-        avatar_url: userData.avatar_url
+        avatar_url: userData.avatar_url,
+        user_type_id: userData.user_type_id || 2 // 기본값 2 (일반 사용자)
       };
 
       const result = await signup(signupData);

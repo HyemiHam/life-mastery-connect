@@ -1,17 +1,18 @@
-
 import { ReactNode } from "react";
 import Header from "./Header";
 import Navigation from "./Navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 type LayoutProps = {
   children: ReactNode;
-  isLoggedIn?: boolean;
 };
 
-const Layout = ({ children, isLoggedIn = false }: LayoutProps) => {
+const Layout = ({ children }: LayoutProps) => {
+  const { isAuthenticated, user } = useAuth();
+  
   return (
     <div className="flex min-h-screen flex-col">
-      <Header isLoggedIn={isLoggedIn} />
+      <Header isLoggedIn={isAuthenticated} user={user} />
       <Navigation />
       <main className="flex-1 py-8">
         <div className="container mx-auto px-4">

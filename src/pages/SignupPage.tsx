@@ -22,6 +22,7 @@ const SignupPage = () => {
     diagnosis_date: "",
     interests: "",
     avatar_url: "",
+    user_type_id: 2, // 기본 사용자 유형: 일반 사용자
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -82,7 +83,8 @@ const SignupPage = () => {
       adhd_diagnosis: formData.adhd_diagnosis,
       diagnosis_date: formData.diagnosis_date || null,
       interests: formData.interests || null,
-      avatar_url: formData.avatar_url || null
+      avatar_url: formData.avatar_url || null,
+      user_type_id: formData.user_type_id,
     });
   };
 

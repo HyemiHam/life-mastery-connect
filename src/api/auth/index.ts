@@ -23,6 +23,7 @@ export interface SignupRequest {
   diagnosis_date?: string | null;
   interests?: string | null;
   avatar_url?: string;
+  user_type_id?: number; // 사용자 유형 (2=일반, 3=코치, 4=시스템관리자)
 }
 
 // 로그인 요청 타입
@@ -44,6 +45,9 @@ export interface ApiResponse<T = unknown> {
  */
 export const signup = async (data: SignupRequest): Promise<ApiResponse<User>> => {
   try {
+    // 사용자 유형 기본값 설정 (2 = 일반 사용자)
+    const userTypeId = data.user_type_id || 2;
+    
     // Supabase 클라이언트를 사용한 회원가입
     const { data: authData, error } = await supabase.auth.signUp({
       email: data.email,
@@ -55,7 +59,8 @@ export const signup = async (data: SignupRequest): Promise<ApiResponse<User>> =>
           adhd_diagnosis: data.adhd_diagnosis,
           diagnosis_date: data.diagnosis_date,
           interests: data.interests,
-          avatar_url: data.avatar_url
+          avatar_url: data.avatar_url,
+          user_type_id: userTypeId
         }
       }
     });
@@ -101,9 +106,10 @@ export const login = async (data: LoginRequest): Promise<ApiResponse<{ user: Use
 
     const { access_token, refresh_token } = authData.session;
     
-    // 토큰 로컬 스토리지에 저장
+    // 토큰 및 사용자 ID 로컬 스토리지에 저장
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('refresh_token', refresh_token);
+    localStorage.setItem('user_id', authData.user.id);
     
     return {
       success: true,
@@ -137,9 +143,10 @@ export const logout = async (): Promise<ApiResponse> => {
     
     if (error) throw error;
     
-    // 로컬 스토리지에서 토큰 제거
+    // 로컬 스토리지에서 토큰 및 사용자 ID 제거
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_id');
     
     return {
       success: true,
@@ -148,9 +155,10 @@ export const logout = async (): Promise<ApiResponse> => {
   } catch (error) {
     console.error('로그아웃 오류:', error);
     
-    // 로그아웃 실패해도 토큰은 제거
+    // 로그아웃 실패해도 토큰 및 사용자 ID 제거
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_id');
     
     // Supabase 에러 처리
     if (error instanceof Error) {

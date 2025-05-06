@@ -1,97 +1,95 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Heart, Bookmark, Share2, MessageSquare, Flag, ChevronLeft } from "lucide-react";
+import { getPostById } from "@/api/posts";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
-// Mock post data - would be fetched from API in real app
-const mockPost = {
-  id: "1",
-  title: "ADHD와 함께하는 업무 집중력 향상 전략",
-  content: `<p>ADHD가 있는 성인들이 업무 환경에서 집중력을 높일 수 있는 실용적인 전략과 기술을 공유합니다.</p>
-  
-  <h2>1. 작업 환경 최적화</h2>
-  <p>ADHD에 친화적인 작업 환경을 만드는 것은 집중력 향상에 매우 중요합니다. 소음을 차단하거나 백색 소음을 활용하고, 시각적 산만함을 줄이는 것이 좋습니다. 또한 조명과 온도도 적절하게 유지하세요.</p>
-  
-  <h2>2. 포모도로 기법 활용</h2>
-  <p>25분 작업 후 5분 휴식하는 포모도로 기법은 ADHD가 있는 사람들에게 특히 효과적입니다. 짧은 집중 시간을 설정함으로써 지속적인 집중력을 유지할 수 있습니다.</p>
-  
-  <h2>3. 작업 분할하기</h2>
-  <p>큰 프로젝트나 작업을 작은 단위로 나누면 압도감을 줄이고 성취감을 자주 느낄 수 있습니다. 각 단계를 완료할 때마다 자신에게 작은 보상을 주는 것도 도움이 됩니다.</p>
-  
-  <h2>4. 시각적 리마인더 활용</h2>
-  <p>포스트잇, 화이트보드, 디지털 캘린더 등 시각적 리마인더는 할 일을 잊지 않게 도와줍니다. 눈에 잘 보이는 곳에 작업 목록이나 중요한 마감일을 표시하세요.</p>
-  
-  <h2>5. 바디더블링 전략</h2>
-  <p>집중이 필요한 작업을 할 때 가볍게 몸을 움직이는 것(예: 다리 흔들기, 피젯 토이 사용)이 일부 ADHD 성인에게는 집중력을 향상시킬 수 있습니다.</p>`,
-  author: { id: "u1", name: "집중력마스터", avatar: "/avatar1.png" },
-  createdAt: "2025-04-18T10:30:00Z",
-  views: 342,
-  commentsCount: 24,
-  likesCount: 105,
-  isBookmarked: false,
-  isLiked: false,
-  tags: ["집중력", "업무효율", "시간관리"],
-  boardType: "tips"
+// 게시판 유형과 이름 매핑
+const boardNames = {
+  tips: "ADHD 극복 꿀팁",
+  free: "자유게시판",
+  positive: "긍정·자랑",
+  knowledge: "지식정보"
 };
 
-// Mock comments
-const mockComments = [
-  {
-    id: "c1",
-    author: { id: "u5", name: "마음챙김", avatar: "/avatar5.png" },
-    content: "포모도로 기법 정말 효과적이에요! 저는 25분이 아닌 15분 단위로 쪼개서 하니까 더 잘 되더라구요.",
-    createdAt: "2025-04-18T14:35:00Z",
-    likesCount: 12,
-    isLiked: false,
-    replies: [
-      {
-        id: "r1",
-        author: { id: "u1", name: "집중력마스터", avatar: "/avatar1.png" },
-        content: "좋은 의견 감사합니다! 개인에 맞게 시간을 조절하는 것도 좋은 방법이네요.",
-        createdAt: "2025-04-18T15:20:00Z",
-        likesCount: 5,
-        isLiked: false,
-      }
-    ]
-  },
-  {
-    id: "c2",
-    author: { id: "u8", name: "학습전략가", avatar: "/avatar8.png" },
-    content: "시각적 리마인더는 정말 중요한 것 같아요. 저는 디지털보다 실물 화이트보드가 더 효과적이더라구요. 눈에 항상 보이니까 잊어버리지 않게 되는 것 같습니다.",
-    createdAt: "2025-04-18T11:42:00Z",
-    likesCount: 8,
-    isLiked: false,
-    replies: []
-  }
-];
-
 const PostDetail = () => {
-  const { postId } = useParams();
+  const { boardType = "free", postId } = useParams<{ boardType: string; postId: string }>();
   const navigate = useNavigate();
-  const [isLoggedIn] = useState(false); // In a real app, this would come from auth context
-  const [post, setPost] = useState(mockPost);
-  const [comments, setComments] = useState(mockComments);
+  const { isAuthenticated } = useAuth();
+  const [post, setPost] = useState<any>(null);
+  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Format date
+  // 게시글 데이터 불러오기
+  useEffect(() => {
+    const fetchPostDetail = async () => {
+      if (!postId) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await getPostById(postId);
+        
+        if (response.success && response.data) {
+          setPost({
+            id: response.data.id,
+            title: response.data.title,
+            content: response.data.content,
+            author: {
+              id: response.data.author?.id || "",
+              name: response.data.author?.username || "익명",
+              avatar: response.data.author?.avatar_url || ""
+            },
+            createdAt: response.data.created_at,
+            views: response.data.view_count,
+            commentsCount: 0, // API에서 제공하지 않는 경우 기본값
+            likesCount: 0, // API에서 제공하지 않는 경우 기본값
+            isBookmarked: false,
+            isLiked: false,
+            tags: response.data.tags?.map((tag: any) => tag.name) || [],
+            boardType: boardType
+          });
+        } else {
+          setError(response.message || "게시글을 불러오는데 실패했습니다.");
+        }
+      } catch (err) {
+        console.error("Error fetching post:", err);
+        setError("게시글을 불러오는데 실패했습니다.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPostDetail();
+  }, [postId, boardType]);
+
+  // 날짜 포맷팅
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
-  // Toggle like for post
+  // 좋아요 토글
   const toggleLike = () => {
-    if (!isLoggedIn) {
-      // Redirect to login in a real app
-      alert("로그인이 필요합니다.");
+    if (!isAuthenticated) {
+      toast({
+        title: "로그인 필요",
+        description: "좋아요를 누르려면 로그인이 필요합니다.",
+        variant: "destructive"
+      });
       return;
     }
 
+    // 좋아요 API 호출 구현 (추후 구현)
     setPost(prev => ({
       ...prev,
       isLiked: !prev.isLiked,
@@ -99,87 +97,101 @@ const PostDetail = () => {
     }));
   };
 
-  // Toggle bookmark
+  // 북마크 토글
   const toggleBookmark = () => {
-    if (!isLoggedIn) {
-      // Redirect to login in a real app
-      alert("로그인이 필요합니다.");
+    if (!isAuthenticated) {
+      toast({
+        title: "로그인 필요",
+        description: "북마크를 추가하려면 로그인이 필요합니다.",
+        variant: "destructive"
+      });
       return;
     }
 
+    // 북마크 API 호출 구현 (추후 구현)
     setPost(prev => ({
       ...prev,
       isBookmarked: !prev.isBookmarked
     }));
   };
 
-  // Submit comment
+  // 댓글 작성
   const submitComment = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isLoggedIn) {
-      // Redirect to login in a real app
-      alert("로그인이 필요합니다.");
+    if (!isAuthenticated) {
+      toast({
+        title: "로그인 필요",
+        description: "댓글을 작성하려면 로그인이 필요합니다.",
+        variant: "destructive"
+      });
       return;
     }
     
     if (!newComment.trim()) return;
 
-    // In a real app, this would make an API call
-    const newCommentObj = {
-      id: `c${Date.now()}`,
-      author: { id: "current-user", name: "나", avatar: "/avatar-user.png" },
-      content: newComment,
-      createdAt: new Date().toISOString(),
-      likesCount: 0,
-      isLiked: false,
-      replies: []
-    };
+    // 댓글 작성 API 호출 구현 (추후 구현)
+    toast({
+      title: "기능 준비 중",
+      description: "댓글 기능은 현재 개발 중입니다."
+    });
 
-    setComments(prev => [newCommentObj, ...prev]);
     setNewComment("");
   };
 
-  // Submit reply
+  // 답글 작성
   const submitReply = (commentId: string) => {
-    if (!isLoggedIn) {
-      // Redirect to login in a real app
-      alert("로그인이 필요합니다.");
+    if (!isAuthenticated) {
+      toast({
+        title: "로그인 필요",
+        description: "답글을 작성하려면 로그인이 필요합니다.",
+        variant: "destructive"
+      });
       return;
     }
     
     const replyContent = replyText[commentId];
     if (!replyContent?.trim()) return;
 
-    // In a real app, this would make an API call
-    const newReply = {
-      id: `r${Date.now()}`,
-      author: { id: "current-user", name: "나", avatar: "/avatar-user.png" },
-      content: replyContent,
-      createdAt: new Date().toISOString(),
-      likesCount: 0,
-      isLiked: false,
-    };
+    // 답글 작성 API 호출 구현 (추후 구현)
+    toast({
+      title: "기능 준비 중",
+      description: "답글 기능은 현재 개발 중입니다."
+    });
 
-    setComments(prev => 
-      prev.map(comment => 
-        comment.id === commentId 
-          ? { ...comment, replies: [...comment.replies, newReply] }
-          : comment
-      )
-    );
-
-    // Clear the reply text for this comment
+    // 답글 입력창 초기화
     setReplyText(prev => ({ ...prev, [commentId]: "" }));
   };
 
-  // Go back to board
+  // 게시판으로 돌아가기
   const goBack = () => {
-    navigate(`/${post.boardType}`);
+    navigate(`/${boardType}`);
   };
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-4xl p-8 text-center">
+          <p>게시글을 불러오는 중...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !post) {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-4xl p-8 text-center">
+          <h2 className="text-2xl font-bold text-destructive mb-4">오류 발생</h2>
+          <p>{error || "게시글을 찾을 수 없습니다."}</p>
+          <Button className="mt-4" onClick={goBack}>게시판으로 돌아가기</Button>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
-    <Layout isLoggedIn={isLoggedIn}>
+    <Layout>
       <div className="mx-auto max-w-4xl">
         {/* Back Button */}
         <Button
@@ -213,26 +225,24 @@ const PostDetail = () => {
               to={`/${post.boardType}`}
               className="rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-foreground"
             >
-              {post.boardType === "tips" && "ADHD 극복 꿀팁"}
-              {post.boardType === "free" && "자유게시판"}
-              {post.boardType === "positive" && "긍정·자랑"}
-              {post.boardType === "knowledge" && "지식정보"}
+              {boardNames[post.boardType as keyof typeof boardNames] || post.boardType}
             </Link>
           </div>
         </div>
 
         {/* Post Content */}
         <div className="mb-8">
-          <div
-            className="prose prose-lg max-w-none"
-            dangerouslySetInnerHTML={{ __html: post.content }}
-          />
+          <div className="prose prose-lg max-w-none">
+            {post.content.split('\n').map((line: string, i: number) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
         </div>
 
         {/* Tags */}
         {post.tags && post.tags.length > 0 && (
           <div className="mb-8 flex flex-wrap gap-2">
-            {post.tags.map(tag => (
+            {post.tags.map((tag: string) => (
               <span
                 key={tag}
                 className="rounded-full bg-secondary px-3 py-1 text-sm font-medium text-secondary-foreground"
@@ -293,10 +303,10 @@ const PostDetail = () => {
               className="mb-3 min-h-[120px]"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              disabled={!isLoggedIn}
+              disabled={!isAuthenticated}
             />
             <div className="flex justify-end">
-              <Button type="submit" disabled={!isLoggedIn}>
+              <Button type="submit" disabled={!isAuthenticated}>
                 댓글 작성
               </Button>
             </div>
@@ -304,110 +314,116 @@ const PostDetail = () => {
 
           {/* Comments List */}
           <div className="space-y-6">
-            {comments.map((comment) => (
-              <div key={comment.id} className="border-b border-border pb-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={comment.author.avatar} alt={comment.author.name} />
-                      <AvatarFallback>{comment.author.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{comment.author.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(comment.createdAt)}
-                      </p>
+            {comments.length > 0 ? (
+              comments.map((comment: any) => (
+                <div key={comment.id} className="border-b border-border pb-6">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={comment.author.avatar} alt={comment.author.name} />
+                        <AvatarFallback>{comment.author.name[0]}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{comment.author.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(comment.createdAt)}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="mb-3 text-base">{comment.content}</div>
+                  <div className="mb-3 text-base">{comment.content}</div>
 
-                <div className="mb-4 flex items-center gap-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 text-muted-foreground"
-                  >
-                    <Heart className="mr-1 h-4 w-4" />
-                    <span>{comment.likesCount}</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 text-muted-foreground"
-                    onClick={() => 
-                      setReplyText(prev => ({ 
-                        ...prev, 
-                        [comment.id]: prev[comment.id] === undefined ? "" : undefined 
-                      }))}
-                  >
-                    <MessageSquare className="mr-1 h-4 w-4" />
-                    <span>답글</span>
-                  </Button>
-                </div>
-
-                {/* Reply Form */}
-                {replyText[comment.id] !== undefined && (
-                  <div className="mb-4">
-                    <Textarea
-                      placeholder="답글을 남겨보세요"
-                      className="mb-2 min-h-[80px]"
-                      value={replyText[comment.id] || ""}
-                      onChange={(e) => 
+                  <div className="mb-4 flex items-center gap-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-muted-foreground"
+                    >
+                      <Heart className="mr-1 h-4 w-4" />
+                      <span>{comment.likesCount}</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-muted-foreground"
+                      onClick={() => 
                         setReplyText(prev => ({ 
                           ...prev, 
-                          [comment.id]: e.target.value 
-                        }))
-                      }
-                      disabled={!isLoggedIn}
-                    />
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        onClick={() => submitReply(comment.id)}
-                        disabled={!isLoggedIn}
-                      >
-                        답글 작성
-                      </Button>
-                    </div>
+                          [comment.id]: prev[comment.id] === undefined ? "" : undefined 
+                        }))}
+                    >
+                      <MessageSquare className="mr-1 h-4 w-4" />
+                      <span>답글</span>
+                    </Button>
                   </div>
-                )}
 
-                {/* Replies */}
-                {comment.replies.length > 0 && (
-                  <div className="ml-8 mt-4 space-y-4 border-l-2 border-border pl-4">
-                    {comment.replies.map((reply) => (
-                      <div key={reply.id}>
-                        <div className="mb-2 flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={reply.author.avatar} alt={reply.author.name} />
-                            <AvatarFallback>{reply.author.name[0]}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{reply.author.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDate(reply.createdAt)}
-                            </p>
+                  {/* Reply Form */}
+                  {replyText[comment.id] !== undefined && (
+                    <div className="mb-4">
+                      <Textarea
+                        placeholder="답글을 남겨보세요"
+                        className="mb-2 min-h-[80px]"
+                        value={replyText[comment.id] || ""}
+                        onChange={(e) => 
+                          setReplyText(prev => ({ 
+                            ...prev, 
+                            [comment.id]: e.target.value 
+                          }))
+                        }
+                        disabled={!isAuthenticated}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={() => submitReply(comment.id)}
+                          disabled={!isAuthenticated}
+                        >
+                          답글 작성
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Replies */}
+                  {comment.replies && comment.replies.length > 0 && (
+                    <div className="ml-8 mt-4 space-y-4 border-l-2 border-border pl-4">
+                      {comment.replies.map((reply: any) => (
+                        <div key={reply.id}>
+                          <div className="mb-2 flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={reply.author.avatar} alt={reply.author.name} />
+                              <AvatarFallback>{reply.author.name[0]}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{reply.author.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(reply.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-sm">{reply.content}</div>
+                          <div className="mt-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-0 text-xs text-muted-foreground"
+                            >
+                              <Heart className="mr-1 h-3 w-3" />
+                              <span>{reply.likesCount}</span>
+                            </Button>
                           </div>
                         </div>
-                        <div className="text-sm">{reply.content}</div>
-                        <div className="mt-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto p-0 text-xs text-muted-foreground"
-                          >
-                            <Heart className="mr-1 h-3 w-3" />
-                            <span>{reply.likesCount}</span>
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">첫 번째 댓글을 작성해보세요</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

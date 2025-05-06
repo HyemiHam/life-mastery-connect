@@ -62,22 +62,89 @@ export interface PaginatedResponse<T> extends ApiResponse {
   pagination?: Pagination;
 }
 
+// 게시판 관련 타입
+export interface Board {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string;
+}
+
+/**
+ * 게시판 ID 조회 함수
+ * 명세서: 게시판 slug를 통해 해당 게시판의 UUID 조회
+ */
+export const getBoardIdBySlug = async (boardSlug: string): Promise<string | null> => {
+  try {
+    const response = await supabaseApi.get('/boards', {
+      params: {
+        select: 'id',
+        slug: `eq.${boardSlug}`
+      }
+    });
+
+    if (!response.data || response.data.length === 0) {
+      console.error(`게시판을 찾을 수 없습니다: ${boardSlug}`);
+      return null;
+    }
+
+    return response.data[0].id;
+  } catch (error) {
+    console.error('게시판 ID 조회 오류:', error);
+    return null;
+  }
+};
+
 /**
  * 게시글 생성
+ * 명세서 항목 4: 게시글 작성(insert posts)
  */
 export const createPost = async (data: CreatePostRequest): Promise<ApiResponse<Post>> => {
   try {
-    // 1. 게시글 추가
-    const response = await supabaseApi.post('/posts', {
-      board_id: data.board_id,
+    // 사용자 ID 가져오기
+    const userId = localStorage.getItem('user_id');
+    if (!userId) {
+      return {
+        success: false,
+        message: '인증 정보가 없습니다. 다시 로그인해주세요.',
+        code: 'INVALID_SESSION'
+      };
+    }
+
+    // board_id가 slug인 경우 UUID로 변환
+    let boardId = data.board_id;
+    if (boardId && !boardId.includes('-')) {
+      const uuid = await getBoardIdBySlug(boardId);
+      if (!uuid) {
+        return {
+          success: false,
+          message: '유효하지 않은 게시판입니다.',
+          code: 'INVALID_BOARD'
+        };
+      }
+      boardId = uuid;
+    }
+
+    // 게시글 추가
+    const postData = {
+      board_id: boardId,
+      author_id: userId,
       title: data.title,
-      content: data.content,
-      author_id: localStorage.getItem('user_id') // 인증된 사용자 ID
-    });
+      content: data.content
+    };
+    
+    const response = await supabaseApi.post('/posts', postData);
+
+    if (!response.data || response.data.length === 0) {
+      return {
+        success: false,
+        message: '게시글 생성에 실패했습니다.'
+      };
+    }
 
     const newPost = response.data[0];
 
-    // 2. 태그 추가 (있는 경우)
+    // 태그 추가 (있는 경우)
     if (data.tags && data.tags.length > 0) {
       const tagPromises = data.tags.map(tagId => 
         supabaseApi.post('/post_tags', {
@@ -85,7 +152,13 @@ export const createPost = async (data: CreatePostRequest): Promise<ApiResponse<P
           tag_id: tagId
         })
       );
-      await Promise.all(tagPromises);
+      
+      try {
+        await Promise.all(tagPromises);
+      } catch (tagError) {
+        console.error("태그 추가 중 오류 발생:", tagError);
+        // 태그 추가 실패는 게시글 생성 성공에 영향을 주지 않음
+      }
     }
 
     return {
@@ -100,6 +173,7 @@ export const createPost = async (data: CreatePostRequest): Promise<ApiResponse<P
 
 /**
  * 게시글 목록 조회
+ * 명세서 항목 7: 게시글 목록 조회
  */
 export const getPosts = async (boardSlug: string, params?: GetPostsParams): Promise<PaginatedResponse<Post>> => {
   try {
@@ -111,28 +185,19 @@ export const getPosts = async (boardSlug: string, params?: GetPostsParams): Prom
     } = params || {};
 
     // 1. 게시판 ID 조회
-    const boardResponse = await supabaseApi.get('/boards', {
-      params: {
-        select: 'id',
-        slug: `eq.${boardSlug}`
-      }
-    });
-
-    if (!boardResponse.data || boardResponse.data.length === 0) {
+    const boardId = await getBoardIdBySlug(boardSlug);
+    if (!boardId) {
       return {
         success: false,
         message: '해당 게시판을 찾을 수 없습니다.'
       };
     }
 
-    const boardId = boardResponse.data[0].id;
-
     // 2. 게시글 수 조회
     const countResponse = await supabaseApi.get('/posts', {
       params: {
-        board_id: `eq.${boardId}`,
         select: 'count',
-        head: true
+        board_id: `eq.${boardId}`
       },
       headers: {
         'Prefer': 'count=exact'
@@ -144,7 +209,7 @@ export const getPosts = async (boardSlug: string, params?: GetPostsParams): Prom
     // 3. 게시글 목록 조회
     const postsResponse = await supabaseApi.get('/posts', {
       params: {
-        select: 'id,title,created_at,view_count,author:author_id(id,username,avatar_url)',
+        select: 'id,title,content,created_at,view_count,author:author_id(id,username,avatar_url)',
         board_id: `eq.${boardId}`,
         order: `${sort}.${order}`,
         offset: (page - 1) * limit,
@@ -170,23 +235,11 @@ export const getPosts = async (boardSlug: string, params?: GetPostsParams): Prom
 
 /**
  * 게시글 상세 조회
+ * 명세서 항목 6: 게시글 상세 조회
  */
 export const getPostById = async (postId: string): Promise<ApiResponse<Post>> => {
   try {
-    // 1. 조회수 증가 (Supabase SQL 함수 사용)
-    await supabaseApi.patch(`/posts`, { 
-      // Note: 여기서는 단순히 현재값 + 1로 구현, 실제로는 RPC 호출이 더 적합할 수 있음
-      view_count: 1 // 서버 측에서 +1 연산을 수행하도록 처리해야 함
-    }, {
-      params: {
-        id: `eq.${postId}`
-      },
-      headers: {
-        'Prefer': 'return=minimal' // 응답 본문 불필요
-      }
-    });
-
-    // 2. 게시글 조회
+    // 게시글 조회
     const response = await supabaseApi.get('/posts', {
       params: {
         select: '*,author:author_id(id,username,avatar_url),tags:post_tags(tag:tags(*))',
@@ -200,6 +253,18 @@ export const getPostById = async (postId: string): Promise<ApiResponse<Post>> =>
         message: '게시글을 찾을 수 없습니다.'
       };
     }
+
+    // 조회수 증가
+    await supabaseApi.patch('/posts', { 
+      view_count: response.data[0].view_count + 1
+    }, {
+      params: {
+        id: `eq.${postId}`
+      },
+      headers: {
+        'Prefer': 'return=minimal'
+      }
+    });
 
     // 태그 데이터 변환
     const post = response.data[0];
@@ -217,6 +282,7 @@ export const getPostById = async (postId: string): Promise<ApiResponse<Post>> =>
 
 /**
  * 게시글 수정
+ * 명세서 항목 8: 게시글 수정(update posts)
  */
 export const updatePost = async (postId: string, data: UpdatePostRequest): Promise<ApiResponse<Post>> => {
   try {
@@ -266,6 +332,7 @@ export const updatePost = async (postId: string, data: UpdatePostRequest): Promi
 
 /**
  * 게시글 삭제
+ * 명세서 항목 10: 게시글 삭제
  */
 export const deletePost = async (postId: string): Promise<ApiResponse> => {
   try {
